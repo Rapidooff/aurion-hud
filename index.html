@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aurion HUD — Studio Rapido</title>
+  <style>
+    :root{
+      --bg:#05060a;
+      --panel:#0b0f18;
+      --panel-2:#0f1422;
+      --txt:#d9f1ff;
+      --muted:#91a7bd;
+      --accent:#38c7ff;
+      --accent-2:#7cffc1;
+      --danger:#ff8f8f;
+      --ok:#77ff8f;
+      --glow: 0 0 16px rgba(56,199,255,.30),0 0 60px rgba(56,199,255,.12);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 800px at 10% -10%, #0a101e 0%, #05060a 40%, #05060a 100%);
+      color:var(--txt);
+      font: 500 15px/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      letter-spacing:.2px;
+    }
+    header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:18px 20px 0 20px;
+    }
+    .brand{display:flex;gap:10px;align-items:center}
+    .logo{
+      width:36px;height:36px;border:1px solid #1e2a3d;border-radius:12px;
+      background:linear-gradient(160deg,#0e1730,#0b1224);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), var(--glow);
+      display:grid;place-items:center;color:var(--accent);font-weight:800;
+    }
+    .subtitle{opacity:.6;font-size:12px;margin-top:-2px}
+    .toolbar{display:flex;gap:10px}
+    .btn{
+      background:#0b162a;border:1px solid #163054;color:#cfe9ff;
+      border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:600
+    }
+    .btn:hover{filter:brightness(1.15)}
+    .grid{
+      display:grid;gap:16px;
+      grid-template-columns: repeat(12,1fr);
+      padding:16px 20px 24px 20px;
+    }
+    .card{
+      background:linear-gradient(180deg,var(--panel),var(--panel-2));
+      border:1px solid #142033;
+      border-radius:14px;
+      padding:16px;
+      min-height:120px;
+      position:relative;
+      overflow:hidden;
+    }
+    .card h2{margin:0 0 10px 0;font-size:14px;letter-spacing:.8px;text-transform:uppercase;color:#a8c4de}
+    .hint{position:absolute;right:14px;top:12px;font-size:11px;opacity:.5}
+    .big{font-size:48px;line-height:1;letter-spacing:1.5px;font-weight:800;text-shadow: var(--glow);}
+    .muted{color:var(--muted)}
+    .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .chip{border:1px solid #1c2a3f;background:#0a1424;border-radius:999px;padding:6px 10px;font-size:12px;color:#b8d3ea}
+    .ok{color:var(--ok)}
+    .bad{color:var(--danger)}
+    .list{margin:8px 0 0 0;padding-left:18px}
+    .list li{margin:6px 0}
+    input[type="text"], input[type="url"]{
+      background:#0b162a;border:1px solid #163054;color:#cfe9ff;border-radius:10px;padding:8px 10px;width:100%;
+    }
+    textarea{background:#0b162a;border:1px solid #163054;color:#cfe9ff;border-radius:10px;padding:10px;width:100%;min-height:120px;resize:vertical}
+    .small{font-size:12px;opacity:.8}
+    .meter{
+      width:100%;height:8px;border-radius:999px;background:#0c1528;border:1px solid #17345a;overflow:hidden
+    }
+    .meter>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#27b1ff,#7cffc1)}
+    .badge{padding:4px 8px;border-radius:8px;border:1px solid #27456e;background:#0b162a;font-size:12px}
+    .inline{display:inline-flex;gap:8px;align-items:center}
+    .footer{
+      padding:0 20px 18px 20px;display:flex;justify-content:space-between;align-items:center;
+      color:#7fa6c9;font-size:12px;opacity:.85
+    }
+    @media (max-width: 1000px){ .grid{grid-template-columns: repeat(6,1fr)} }
+    @media (max-width: 640px){ .grid{grid-template-columns: repeat(2,1fr)} }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .kbd{font:600 12px ui-monospace, SFMono-Regular, Menlo, monospace;border:1px solid #27456e;background:#0b162a;border-radius:6px;padding:2px 6px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">A</div>
+      <div>
+        <div style="font-weight:800;letter-spacing:1.2px">AURION · HUD</div>
+        <div class="subtitle">Cockpit local — Studio Rapido</div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="fullscreenBtn">Plein écran</button>
+      <button class="btn" id="saveBtn">Sauver</button>
+    </div>
+  </header>
+
+  <section class="grid">
+    <!-- Horloge & réseau -->
+    <div class="card" style="grid-column: span 4">
+      <div class="hint">Temps réel</div>
+      <h2>Horloge</h2>
+      <div class="big" id="clock">--:--</div>
+      <div class="muted" id="dateLine">--</div>
+      <div class="row" style="margin-top:12px">
+        <span class="chip" id="onlineChip">Statut: ...</span>
+        <span class="chip" id="latencyChip">Latence: -- ms</span>
+      </div>
+      <div class="meter" style="margin-top:10px"><i id="latencyBar"></i></div>
+    </div>
+
+    <!-- Statut réseau + tips -->
+    <div class="card" style="grid-column: span 4">
+      <div class="hint">Freebox</div>
+      <h2>Statut Réseau</h2>
+      <div id="statusLine" class="small">Analyse en cours…</div>
+      <ul class="list small" id="netHints"></ul>
+      <div class="small muted" style="margin-top:8px">Astuce : renomme les appareils dans DHCP (ex : RAPIDO‑DEV, EVA_PHONE).</div>
+    </div>
+
+    <!-- Raccourcis -->
+    <div class="card" style="grid-column: span 4">
+      <div class="hint">Accès rapide</div>
+      <h2>Raccourcis</h2>
+      <ul class="list">
+        <li>Admin routeur : <a href="http://mafreebox.freebox.fr" target="_blank" rel="noopener">mafreebox.freebox.fr</a></li>
+        <li>Fichiers partagés (USB) : activer le partage dans l’admin</li>
+        <li>Wi‑Fi invité : activer/désactiver dans Wi‑Fi invité</li>
+      </ul>
+    </div>
+
+    <!-- Météo (Open‑Meteo) -->
+    <div class="card" style="grid-column: span 6">
+      <div class="hint">Open‑Meteo (sans clé)</div>
+      <h2>Météo</h2>
+      <div class="row" style="margin-bottom:8px">
+        <input type="text" id="cityInput" placeholder="Ta ville (ex : Paris) — ou autorise la géolocalisation">
+        <button class="btn" id="citySearchBtn">Chercher</button>
+        <span id="geoBtn" class="btn">📍 Localiser</span>
+      </div>
+      <div class="row small">
+        <span class="badge" id="cityBadge">Ville : —</span>
+        <span class="badge" id="coordsBadge">Coords : —</span>
+        <span class="badge" id="tzBadge">TZ : —</span>
+      </div>
+      <div class="row" style="margin-top:12px;align-items:flex-end">
+        <div style="min-width:120px">
+          <div class="muted small">Température</div>
+          <div class="big" id="tempNow">—°</div>
+        </div>
+        <div>
+          <div class="muted small">Ciel</div>
+          <div id="wdesc" class="inline"><span>—</span></div>
+        </div>
+        <div>
+          <div class="muted small">Vent</div>
+          <div id="windNow">— km/h</div>
+        </div>
+      </div>
+      <div class="small muted" style="margin-top:10px" id="meteoDebug"></div>
+    </div>
+
+    <!-- Appareils (manuel + localStorage) -->
+    <div class="card" style="grid-column: span 6">
+      <div class="hint">Inventaire</div>
+      <h2>Appareils</h2>
+      <ul class="list" id="deviceList"></ul>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="deviceInput" placeholder="Ajouter un appareil (ex : RAPIDO‑DEV)">
+        <button class="btn" id="addDeviceBtn">Ajouter</button>
+        <button class="btn" id="clearDeviceBtn">Vider</button>
+      </div>
+    </div>
+
+    <!-- Bloc‑notes -->
+    <div class="card" style="grid-column: span 6">
+      <div class="hint">localStorage</div>
+      <h2>Bloc‑notes</h2>
+      <textarea id="notesArea" placeholder="Notes, SSID, todo…"></textarea>
+      <div class="small muted" style="margin-top:6px">Sauvegardé localement — rien n’est envoyé.</div>
+    </div>
+
+    <!-- Lecteur Audio -->
+    <div class="card" style="grid-column: span 6">
+      <div class="hint">Audio local</div>
+      <h2>Ambiance</h2>
+      <div class="row">
+        <input type="file" id="audioFile" accept="audio/*">
+        <button class="btn" id="playBtn">Lecture/Pause</button>
+        <span id="audioName" class="small muted">Aucun fichier</span>
+      </div>
+      <audio id="player" preload="metadata"></audio>
+    </div>
+
+    <!-- Console Aurion (branchable) -->
+    <div class="card" style="grid-column: span 12">
+      <div class="hint">HTTP POST</div>
+      <h2>Console Aurion</h2>
+      <div class="row" style="margin-bottom:8px">
+        <input type="url" id="aurionUrl" placeholder="Endpoint Aurion (ex : http://localhost:3000/aurion)">
+        <input type="text" id="aurionKey" placeholder="Clé/API (optionnel)">
+        <button class="btn" id="aurionSave">Enregistrer</button>
+      </div>
+      <div class="row">
+        <input type="text" id="aurionPrompt" placeholder="Tape une commande (ex : 'Donne l’état du réseau en 1 ligne')">
+        <button class="btn" id="aurionSend">Envoyer</button>
+      </div>
+      <pre id="aurionOut" class="mono" style="margin-top:12px;white-space:pre-wrap;word-break:break-word;background:#0a1424;border:1px solid #17345a;border-radius:10px;padding:12px;max-height:260px;overflow:auto">Aucune sortie pour l’instant.</pre>
+      <div class="small muted">Cette console fait un <span class="kbd">fetch POST</span> réel. Si l’URL n’est pas définie, l’envoi est refusé (pas de simulation).</div>
+    </div>
+  </section>
+
+  <div class="footer">
+    <div>© Studio Rapido — Aurion</div>
+    <div class="small">Astuce : ajoute cette page à l’écran d’accueil de ton téléphone (PWA‑lite) et passe en plein écran.</div>
+  </div>
+
+  <script>
+    // ---------------- Clock & date ----------------
+    function pad(n){return String(n).padStart(2,'0')}
+    function updateClock(){
+      const d = new Date();
+      document.getElementById('clock').textContent = pad(d.getHours())+':'+pad(d.getMinutes());
+      const days = ["Dim.","Lun.","Mar.","Mer.","Jeu.","Ven.","Sam."];
+      const months = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+      document.getElementById('dateLine').textContent = days[d.getDay()]+" "+d.getDate()+" "+months[d.getMonth()]+" "+d.getFullYear();
+    }
+    updateClock();
+    setInterval(updateClock,60*1000);
+
+    // ---------------- Online & latency ----------------
+    const onlineChip = document.getElementById('onlineChip');
+    const latencyChip = document.getElementById('latencyChip');
+    const latencyBar  = document.getElementById('latencyBar');
+
+    function setOnlineStatus(){
+      const online = navigator.onLine;
+      onlineChip.textContent = online ? "Statut : en ligne" : "Statut : hors ligne";
+      onlineChip.style.borderColor = online ? "#1f6b3a" : "#6b1f1f";
+      onlineChip.style.color = online ? "#9affb0" : "#ff9a9a";
+    }
+    setOnlineStatus();
+    addEventListener('online', setOnlineStatus);
+    addEventListener('offline', setOnlineStatus);
+
+    async function latencyTest(){
+      const start = performance.now();
+      try{
+        // Two targets to improve reliability (no-cors):
+        const targets = ["https://1.1.1.1/cdn-cgi/trace","https://www.google.com/generate_204"];
+        const url = targets[Math.floor(Math.random()*targets.length)] + "?ts="+Date.now();
+        await fetch(url, {mode:"no-cors", cache:"no-store"});
+        const ms = Math.round(performance.now() - start);
+        latencyChip.textContent = "Latence : "+ms+" ms";
+        const pct = Math.max(3, Math.min(100, 100 - Math.min(500, ms)/5*1)); // crude map
+        latencyBar.style.width = pct+"%";
+      }catch(e){
+        latencyChip.textContent = "Latence : n/d";
+        latencyBar.style.width = "0%";
+      }
+    }
+    latencyTest();
+    setInterval(latencyTest, 15000);
+
+    // ---------------- Tips text ----------------
+    const statusLine = document.getElementById('statusLine');
+    const netHints = document.getElementById('netHints');
+    function refreshHints(){
+      const hints = [
+        "• Change le SSID et le mot de passe dans l’admin Freebox.",
+        "• Active le Wi‑Fi invité pour tes amis.",
+        "• Renomme tes appareils dans DHCP (ex : RAPIDO‑DEV, EVA_PHONE).",
+        "• (Optionnel) Branche une clé USB et active le partage."
+      ];
+      netHints.innerHTML = hints.map(h=>"<li>"+h+"</li>").join("");
+      statusLine.innerHTML = navigator.onLine
+        ? 'Boîtier : <span class="ok">en ligne (navigateur)</span> — configure les options dans la Freebox.'
+        : 'Boîtier : <span class="bad">hors ligne (navigateur)</span> — vérifie le Wi‑Fi/ethernet.';
+    }
+    refreshHints();
+
+    // ---------------- Devices (localStorage) ----------------
+    const LS_DEV = "aurion_devices";
+    const deviceList = document.getElementById('deviceList');
+    const deviceInput = document.getElementById('deviceInput');
+    document.getElementById('addDeviceBtn').onclick = () => {
+      const v = deviceInput.value.trim();
+      if(!v) return;
+      const arr = JSON.parse(localStorage.getItem(LS_DEV) || "[]");
+      arr.push(v); localStorage.setItem(LS_DEV, JSON.stringify(arr));
+      deviceInput.value = ""; renderDevices();
+    };
+    document.getElementById('clearDeviceBtn').onclick = () => {
+      localStorage.removeItem(LS_DEV); renderDevices();
+    };
+    deviceInput.addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('addDeviceBtn').click() });
+    function renderDevices(){
+      const arr = JSON.parse(localStorage.getItem(LS_DEV) || "[]");
+      if(!arr.length){ deviceList.innerHTML = "<li class='muted'>Aucun pour l’instant.</li>"; return; }
+      deviceList.innerHTML = arr.map((d,i)=>`<li class="inline">${d}
+        <button class="btn" style="margin-left:6px;padding:4px 8px" onclick="(function(){const a=JSON.parse(localStorage.getItem('${LS_DEV}')||'[]');a.splice(${i},1);localStorage.setItem('${LS_DEV}',JSON.stringify(a));renderDevices();})()">Supprimer</button>
+      </li>`).join("");
+    }
+    renderDevices();
+
+    // ---------------- Notes (localStorage) ----------------
+    const LS_NOTES = "aurion_notes_text";
+    const notesArea = document.getElementById('notesArea');
+    function loadNotes(){ notesArea.value = localStorage.getItem(LS_NOTES) || "" }
+    function saveNotes(){ localStorage.setItem(LS_NOTES, notesArea.value); flashBtn(saveBtn); }
+    const saveBtn = document.getElementById('saveBtn');
+    notesArea.addEventListener('input', ()=>{ /* autosave lite */ setTimeout(saveNotes, 300); });
+    function flashBtn(btn){ const t=btn.textContent; btn.textContent="Sauvé ✓"; setTimeout(()=>btn.textContent=t,900) }
+    loadNotes();
+
+    // ---------------- Fullscreen ----------------
+    document.getElementById('fullscreenBtn').onclick = () => {
+      const el = document.documentElement;
+      if(!document.fullscreenElement){ el.requestFullscreen?.() } else { document.exitFullscreen?.() }
+    };
+
+    // ---------------- Audio ----------------
+    const audioInput = document.getElementById('audioFile');
+    const audio = document.getElementById('player');
+    const audioName = document.getElementById('audioName');
+    document.getElementById('playBtn').onclick = ()=>{ if(audio.src) audio.paused ? audio.play() : audio.pause(); };
+    audioInput.onchange = ()=>{
+      const f = audioInput.files && audioInput.files[0];
+      if(!f) return;
+      audio.src = URL.createObjectURL(f);
+      audioName.textContent = f.name + " ("+Math.round(f.size/1024)+" Ko)";
+      audio.play().catch(()=>{});
+    };
+
+    // ---------------- Weather (Open‑Meteo) ----------------
+    const cityInput = document.getElementById('cityInput');
+    const searchBtn = document.getElementById('citySearchBtn');
+    const geoBtn = document.getElementById('geoBtn');
+    const cityBadge = document.getElementById('cityBadge');
+    const coordsBadge = document.getElementById('coordsBadge');
+    const tzBadge = document.getElementById('tzBadge');
+    const tempNow = document.getElementById('tempNow');
+    const windNow = document.getElementById('windNow');
+    const wdesc = document.getElementById('wdesc');
+    const meteoDebug = document.getElementById('meteoDebug');
+
+    const WMAP = {
+      0:"Ciel clair", 1:"Principalement clair", 2:"Partiellement nuageux", 3:"Couvert",
+      45:"Brouillard", 48:"Brouillard givrant",
+      51:"Bruine légère", 53:"Bruine", 55:"Bruine dense",
+      56:"Bruine verglaçante légère", 57:"Bruine verglaçante dense",
+      61:"Pluie faible", 63:"Pluie", 65:"Pluie forte",
+      66:"Pluie verglaçante faible", 67:"Pluie verglaçante",
+      71:"Neige faible", 73:"Neige", 75:"Neige forte",
+      77:"Grains de neige",
+      80:"Averses faibles",81:"Averses",82:"Averses fortes",
+      85:"Averses de neige faibles",86:"Averses de neige fortes",
+      95:"Orage", 96:"Orage avec grésil", 99:"Orage violent"
+    };
+
+    async function geocodeCity(q){
+      const url = "https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&format=json&name="+encodeURIComponent(q);
+      const r = await fetch(url,{cache:"no-store"});
+      if(!r.ok) throw new Error("Geocoding HTTP "+r.status);
+      const j = await r.json();
+      if(!j.results || !j.results.length) throw new Error("Ville introuvable");
+      const c = j.results[0];
+      return { name: c.name + (c.admin1? ", "+c.admin1:"") + (c.country? " — "+c.country:""), lat:c.latitude, lon:c.longitude, tz:c.timezone };
+    }
+
+    async function fetchWeather(lat, lon){
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`;
+      const r = await fetch(url,{cache:"no-store"});
+      if(!r.ok) throw new Error("Weather HTTP "+r.status);
+      const j = await r.json();
+      return j;
+    }
+
+    function setMeteoUI(city, lat, lon, tz, data){
+      cityBadge.textContent = "Ville : "+city;
+      coordsBadge.textContent = "Coords : "+lat.toFixed(3)+", "+lon.toFixed(3);
+      tzBadge.textContent = "TZ : "+tz;
+      const c = data.current;
+      tempNow.textContent = Math.round(c.temperature_2m)+"°";
+      windNow.textContent = Math.round(c.wind_speed_10m)+" km/h";
+      const desc = WMAP[c.weather_code] || ("Code "+c.weather_code);
+      wdesc.innerHTML = `<span class="badge">${desc}</span>`;
+      meteoDebug.textContent = "";
+    }
+
+    async function loadCity(q){
+      try{
+        cityBadge.textContent = "Ville : …"; coordsBadge.textContent="Coords : …"; tzBadge.textContent="TZ : …";
+        tempNow.textContent="—°"; windNow.textContent="— km/h"; wdesc.textContent="—";
+        const c = await geocodeCity(q);
+        const w = await fetchWeather(c.lat, c.lon);
+        setMeteoUI(c.name, c.lat, c.lon, c.tz, w);
+        localStorage.setItem("aurion_city", JSON.stringify(c));
+      }catch(err){
+        meteoDebug.textContent = "Erreur : "+err.message;
+      }
+    }
+    searchBtn.onclick = ()=>{ const v = cityInput.value.trim(); if(v) loadCity(v) };
+
+    geoBtn.onclick = ()=>{
+      if(!navigator.geolocation){ meteoDebug.textContent = "Géolocalisation non supportée."; return; }
+      navigator.geolocation.getCurrentPosition(async (pos)=>{
+        try{
+          const {latitude:lat, longitude:lon} = pos.coords;
+          const url = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=fr`;
+          const r = await fetch(url,{cache:"no-store"}); const j = await r.json();
+          const name = (j && j.results && j.results[0] && (j.results[0].name+(j.results[0].admin1? ", "+j.results[0].admin1:""))) || "Position actuelle";
+          const tz = (j && j.results && j.results[0] && j.results[0].timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const w = await fetchWeather(lat, lon);
+          setMeteoUI(name, lat, lon, tz, w);
+          localStorage.setItem("aurion_city", JSON.stringify({name, lat, lon, tz}));
+        }catch(e){ meteoDebug.textContent = "Erreur : "+e.message; }
+      }, (err)=>{
+        meteoDebug.textContent = "Géolocalisation refusée : "+err.message;
+      }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+    };
+
+    // Charger la dernière ville si dispo
+    (function(){
+      try{
+        const c = JSON.parse(localStorage.getItem("aurion_city")||"null");
+        if(c){ fetchWeather(c.lat, c.lon).then(w=> setMeteoUI(c.name, c.lat, c.lon, c.tz, w)).catch(()=>{}); }
+      }catch(_){}
+    })();
+
+    // ---------------- Aurion Console (real POST) ----------------
+    const aurionUrl = document.getElementById('aurionUrl');
+    const aurionKey = document.getElementById('aurionKey');
+    const aurionSave = document.getElementById('aurionSave');
+    const aurionPrompt = document.getElementById('aurionPrompt');
+    const aurionSend = document.getElementById('aurionSend');
+    const aurionOut = document.getElementById('aurionOut');
+    const LS_AURION = "aurion_console_cfg";
+
+    function loadAurionCfg(){
+      try{
+        const j = JSON.parse(localStorage.getItem(LS_AURION)||"{}");
+        aurionUrl.value = j.url || "";
+        aurionKey.value = j.key || "";
+      }catch(_){}
+    }
+    function saveAurionCfg(){
+      localStorage.setItem(LS_AURION, JSON.stringify({url: aurionUrl.value.trim(), key: aurionKey.value}));
+      flashBtn(aurionSave);
+    }
+    aurionSave.onclick = saveAurionCfg;
+    loadAurionCfg();
+
+    async function callAurion(prompt){
+      const url = aurionUrl.value.trim();
+      if(!url){ aurionOut.textContent = "Erreur : définis un endpoint Aurion avant d’envoyer."; return; }
+      aurionOut.textContent = "Envoi…";
+      try{
+        const body = { prompt };
+        const headers = { "Content-Type":"application/json" };
+        if(aurionKey.value.trim()) headers["Authorization"] = "Bearer "+aurionKey.value.trim();
+        const r = await fetch(url, { method:"POST", headers, body: JSON.stringify(body) });
+        const txt = await r.text();
+        // Affiche tel quel (permet de voir JSON, texte, etc.)
+        aurionOut.textContent = txt;
+      }catch(err){
+        aurionOut.textContent = "Erreur requête : "+err.message;
+      }
+    }
+    aurionSend.onclick = ()=>{
+      const p = aurionPrompt.value.trim();
+      if(!p) return;
+      callAurion(p);
+    };
+    aurionPrompt.addEventListener('keydown', e=>{ if(e.key==='Enter') aurionSend.click() });
+  </script>
+</body>
+</html>
