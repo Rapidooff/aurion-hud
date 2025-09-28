@@ -3,6 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- iOS/PWA meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0b0f18">
+  <!-- Minimal inline icons -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs/%3E%3Crect width='64' height='64' rx='14' ry='14' fill='%230b1224'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='Arial' font-size='36' font-weight='700' fill='%2338c7ff'%3EA%3C/text%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAYAAAB3X2wPAAAAFklEQVR4Ae3BAQ0AAADCoPdPbQ43oAAAAAAAAJ0Hq1wAAa+0y0YAAAAASUVORK5CYII=">
+  <!-- Inline manifest (single-file) -->
+  <link rel="manifest" href='data:application/manifest+json,{"name":"Aurion HUD","short_name":"Aurion","start_url":"./","display":"standalone","background_color":"#05060a","theme_color":"#0b0f18","icons":[{"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAYAAAB3X2wPAAAAFklEQVR4Ae3BAQ0AAADCoPdPbQ43oAAAAAAAAJ0Hq1wAAa+0y0YAAAAASUVORK5CYII=","sizes":"64x64","type":"image/png"}]}'>
   <title>Aurion HUD — Studio Rapido</title>
   <style>
     :root{
@@ -91,6 +100,22 @@
     a:hover{text-decoration:underline}
     .kbd{font:600 12px ui-monospace, SFMono-Regular, Menlo, monospace;border:1px solid #27456e;background:#0b162a;border-radius:6px;padding:2px 6px}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px}
+    /* Compact mode (toggle via .compact on <body>) */
+    body.compact .grid{gap:12px;padding:12px 12px 18px}
+    body.compact header{padding:12px 12px 0}
+    body.compact .card{padding:12px;border-radius:12px}
+    body.compact .btn{padding:6px 8px}
+    body.compact .big{font-size:36px}
+    @media (max-width:420px){
+      .btn{padding:6px 8px}
+      .big{font-size:40px}
+      header .subtitle{font-size:11px}
+    }
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      *{transition:none!important;animation:none!important}
+    }
+    body.reduce-motion *{transition:none!important;animation:none!important}
   </style>
 </head>
 <body>
@@ -105,6 +130,9 @@
     <div class="toolbar">
       <button class="btn" id="fullscreenBtn">Plein écran</button>
       <button class="btn" id="saveBtn">Sauver</button>
+      <button class="btn" id="installBtn">Installer (offline)</button>
+      <button class="btn" id="clearCacheBtn">Reset cache</button>
+      <button class="btn" id="settingsBtn">Réglages</button>
     </div>
   </header>
 
@@ -120,6 +148,7 @@
         <span class="chip" id="latencyChip">Latence: -- ms</span>
       </div>
       <div class="meter" style="margin-top:10px"><i id="latencyBar"></i></div>
+      <canvas id="latencyPlot" height="36" style="width:100%;margin-top:8px;border:1px solid #17345a;border-radius:8px;background:#0a1424"></canvas>
     </div>
 
     <!-- Statut réseau + tips -->
@@ -182,6 +211,9 @@
         <input type="text" id="deviceInput" placeholder="Ajouter un appareil (ex : RAPIDO‑DEV)">
         <button class="btn" id="addDeviceBtn">Ajouter</button>
         <button class="btn" id="clearDeviceBtn">Vider</button>
+        <button class="btn" id="devExport">Exporter</button>
+        <label class="btn" for="devImportInput">Importer</label>
+        <input type="file" id="devImportInput" accept="application/json" style="display:none">
       </div>
     </div>
 
@@ -191,6 +223,11 @@
       <h2>Bloc‑notes</h2>
       <textarea id="notesArea" placeholder="Notes, SSID, todo…"></textarea>
       <div class="small muted" style="margin-top:6px">Sauvegardé localement — rien n’est envoyé.</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="notesExport">Exporter</button>
+        <label class="btn" for="notesImportInput">Importer</label>
+        <input type="file" id="notesImportInput" accept="application/json" style="display:none">
+      </div>
     </div>
 
     <!-- Lecteur Audio -->
@@ -209,16 +246,25 @@
     <div class="card" style="grid-column: span 12">
       <div class="hint">HTTP POST</div>
       <h2>Console Aurion</h2>
+      <div class="row small" id="aurionHealthRow" style="margin-top:-6px">
+        <span class="badge" id="aurionHealth">Santé : inconnue</span>
+        <a href="#" id="aurionHelp">Aide</a>
+      </div>
       <div class="row" style="margin-bottom:8px">
         <input type="url" id="aurionUrl" placeholder="Endpoint Aurion (ex : http://localhost:3000/aurion)">
         <input type="text" id="aurionKey" placeholder="Clé/API (optionnel)">
         <button class="btn" id="aurionSave">Enregistrer</button>
+        <button class="btn" id="aurionTest">Tester</button>
       </div>
       <div class="row">
         <input type="text" id="aurionPrompt" placeholder="Tape une commande (ex : 'Donne l’état du réseau en 1 ligne')">
         <button class="btn" id="aurionSend">Envoyer</button>
       </div>
       <pre id="aurionOut" class="mono" style="margin-top:12px;white-space:pre-wrap;word-break:break-word;background:#0a1424;border:1px solid #17345a;border-radius:10px;padding:12px;max-height:260px;overflow:auto">Aucune sortie pour l’instant.</pre>
+      <div class="row small" style="margin-top:8px">
+        <button class="btn" id="outCopy">Copier</button>
+        <button class="btn" id="outClear">Effacer</button>
+      </div>
       <div class="small muted">Cette console fait un <span class="kbd">fetch POST</span> réel. Si l’URL n’est pas définie, l’envoi est refusé (pas de simulation).</div>
     </div>
   </section>
@@ -240,6 +286,37 @@
     }
     updateClock();
     setInterval(updateClock,60*1000);
+    // ---------------- PWA-lite: inline Service Worker for offline ----------------
+    (function(){
+      if('serviceWorker' in navigator){
+        const swCode = `const V='aurion-hud-v2';self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(['./'])))});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('aurion-hud-')&&k!==V).map(k=>caches.delete(k)))))});self.addEventListener('fetch',e=>{const req=e.request;if(req.method!=='GET'){return e.respondWith(fetch(req).catch(()=>new Response('offline',{status:503})))};const url=new URL(req.url);if(e.request.mode==='navigate'){return e.respondWith(fetch(req).catch(()=>caches.match('./')))};e.respondWith(caches.match(req).then(cached=>{const fetchP=fetch(req).then(res=>{if(res&&res.ok){const clone=res.clone();caches.open(V).then(c=>c.put(req,clone))}return res}).catch(()=>cached||fetch(req));return cached||fetchP}))});`;
+        const blob = new Blob([swCode], {type:'text/javascript'});
+        const swUrl = URL.createObjectURL(blob);
+        navigator.serviceWorker.register(swUrl).catch(()=>{});
+      }
+    })();
+    // Reset cache button
+    const clearCacheBtn = document.getElementById('clearCacheBtn');
+    if(clearCacheBtn){
+      clearCacheBtn.onclick = async ()=>{
+        try{
+          const keys = await caches.keys();
+          await Promise.all(keys.filter(k=>k.startsWith('aurion-hud-')).map(k=>caches.delete(k)));
+          if('serviceWorker' in navigator){
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r=>r.unregister()));
+          }
+          alert('Cache et Service Worker réinitialisés. Recharge la page.');
+        }catch(e){ alert('Reset cache: '+e.message); }
+      };
+    }
+    const installBtn = document.getElementById('installBtn');
+    if(installBtn){
+      // iOS n'a pas d'événement beforeinstallprompt — on affiche juste une aide
+      installBtn.onclick = ()=>{
+        alert("iPhone/iPad : Ouvre dans Safari → Partager → Ajouter à l’écran d’accueil.\nAndroid/Chrome : menu ⋮ → Installer l’application.");
+      };
+    }
 
     // ---------------- Online & latency ----------------
     const onlineChip = document.getElementById('onlineChip');
@@ -274,6 +351,37 @@
     }
     latencyTest();
     setInterval(latencyTest, 15000);
+    // Latency sparkline
+    const latHist = [];
+    const plot = document.getElementById('latencyPlot');
+    function drawLatency(){
+      if(!plot) return; const w = plot.clientWidth; const h = plot.height; plot.width = w; const ctx = plot.getContext('2d');
+      ctx.clearRect(0,0,w,h); if(latHist.length<2) return;
+      const max = Math.max(...latHist, 300); const min = 0;
+      ctx.beginPath(); ctx.moveTo(0, h - (latHist[0]-min)/(max-min)*h);
+      for(let i=1;i<latHist.length;i++){
+        const x = i*(w/Math.max(1,latHist.length-1));
+        const y = h - (latHist[i]-min)/(max-min)*h; ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle = '#38c7ff'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    const _origLatencyTest = latencyTest;
+    async function latencyTest(){
+      const start = performance.now();
+      try{
+        const targets = ["https://1.1.1.1/cdn-cgi/trace","https://www.google.com/generate_204"]; const url = targets[Math.floor(Math.random()*targets.length)] + "?ts="+Date.now();
+        await fetch(url, {mode:"no-cors", cache:"no-store"});
+        const ms = Math.round(performance.now() - start);
+        latencyChip.textContent = "Latence : "+ms+" ms";
+        const pct = Math.max(3, Math.min(100, 100 - Math.min(500, ms)/5*1));
+        latencyBar.style.width = pct+"%";
+        latHist.push(ms); if(latHist.length>60) latHist.shift(); drawLatency();
+      }catch(e){
+        latencyChip.textContent = "Latence : n/d"; latencyBar.style.width = "0%"; latHist.push(500); if(latHist.length>60) latHist.shift(); drawLatency();
+      }
+    }
+    // redraw on resize
+    addEventListener('resize', drawLatency);
 
     // ---------------- Tips text ----------------
     const statusLine = document.getElementById('statusLine');
@@ -315,6 +423,24 @@
       </li>`).join("");
     }
     renderDevices();
+    // Devices export/import
+    const devExport = document.getElementById('devExport');
+    const devImportInput = document.getElementById('devImportInput');
+    if(devExport){
+      devExport.onclick = ()=>{
+        const arr = JSON.parse(localStorage.getItem(LS_DEV) || '[]');
+        const blob = new Blob([JSON.stringify({devices:arr}, null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'aurion-devices.json'; a.click();
+      };
+    }
+    if(devImportInput){
+      devImportInput.onchange = ()=>{
+        const f = devImportInput.files && devImportInput.files[0];
+        if(!f) return; const rd = new FileReader();
+        rd.onload = ()=>{ try{ const j = JSON.parse(rd.result); if(Array.isArray(j.devices)){ localStorage.setItem(LS_DEV, JSON.stringify(j.devices)); renderDevices(); } else alert('Format invalide'); } catch(e){ alert('Import invalide'); } };
+        rd.readAsText(f);
+      };
+    }
 
     // ---------------- Notes (localStorage) ----------------
     const LS_NOTES = "aurion_notes_text";
@@ -325,12 +451,122 @@
     notesArea.addEventListener('input', ()=>{ /* autosave lite */ setTimeout(saveNotes, 300); });
     function flashBtn(btn){ const t=btn.textContent; btn.textContent="Sauvé ✓"; setTimeout(()=>btn.textContent=t,900) }
     loadNotes();
+    // Notes export/import
+    const notesExport = document.getElementById('notesExport');
+    const notesImportInput = document.getElementById('notesImportInput');
+    if(notesExport){
+      notesExport.onclick = ()=>{
+        const data = { notes: notesArea.value };
+        const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'aurion-notes.json';
+        a.click();
+      };
+    }
+    if(notesImportInput){
+      notesImportInput.onchange = ()=>{
+        const f = notesImportInput.files && notesImportInput.files[0];
+        if(!f) return;
+        const rd = new FileReader();
+        rd.onload = ()=>{
+          try{ const j = JSON.parse(rd.result); notesArea.value = j.notes || ""; saveNotes(); }
+          catch(e){ alert('Import invalide'); }
+        };
+        rd.readAsText(f);
+      };
+    }
 
     // ---------------- Fullscreen ----------------
     document.getElementById('fullscreenBtn').onclick = () => {
       const el = document.documentElement;
       if(!document.fullscreenElement){ el.requestFullscreen?.() } else { document.exitFullscreen?.() }
     };
+
+    // Console actions: copy / clear
+    const outCopy = document.getElementById('outCopy');
+    const outClear = document.getElementById('outClear');
+    if(outCopy){ outCopy.onclick = async ()=>{ try{ await navigator.clipboard.writeText(aurionOut.textContent||''); flashBtn(outCopy); }catch(e){ alert('Impossible de copier'); } }; }
+    if(outClear){ outClear.onclick = ()=>{ aurionOut.textContent = 'Aucune sortie pour l’instant.'; }; }
+
+    // Keyboard shortcuts
+    addEventListener('keydown', (e)=>{
+      if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); aurionPrompt.focus(); aurionPrompt.select(); }
+      if((e.metaKey||e.ctrlKey) && e.key==='Enter'){ e.preventDefault(); aurionSend.click(); }
+      if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='l'){ e.preventDefault(); if(outClear) outClear.click(); }
+    });
+
+    // Settings modal + persistence
+    const LS_SETTINGS = 'aurion_settings_v1';
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+    const settingsClose = document.getElementById('settingsClose');
+    const optCompact = document.getElementById('optCompact');
+    const optReduceMotion = document.getElementById('optReduceMotion');
+    const optClock12h = document.getElementById('optClock12h');
+    function loadSettings(){
+      try{ const j = JSON.parse(localStorage.getItem(LS_SETTINGS)||'{}');
+        document.body.classList.toggle('compact', !!j.compact);
+        document.body.classList.toggle('reduce-motion', !!j.reduceMotion);
+        optCompact.checked = !!j.compact; optReduceMotion.checked = !!j.reduceMotion; optClock12h.checked = !!j.clock12h;
+        window.__aurionClock12h = !!j.clock12h;
+      }catch(_){ }
+    }
+    function saveSettings(){
+      const j = { compact: !!optCompact.checked, reduceMotion: !!optReduceMotion.checked, clock12h: !!optClock12h.checked };
+      localStorage.setItem(LS_SETTINGS, JSON.stringify(j));
+      document.body.classList.toggle('compact', j.compact);
+      document.body.classList.toggle('reduce-motion', j.reduceMotion);
+      window.__aurionClock12h = !!j.clock12h;
+    }
+    if(settingsBtn){ settingsBtn.onclick = ()=>{ settingsModal.style.display='flex'; loadSettings(); }; }
+    if(settingsClose){ settingsClose.onclick = ()=>{ settingsModal.style.display='none'; saveSettings(); }; }
+    // Export/import full config (devices, notes, city, console cfg, settings)
+    const cfgExport = document.getElementById('cfgExport');
+    const cfgImportInput = document.getElementById('cfgImportInput');
+    if(cfgExport){ cfgExport.onclick = ()=>{
+      const data = {
+        devices: JSON.parse(localStorage.getItem('aurion_devices')||'[]'),
+        notes: localStorage.getItem('aurion_notes_text')||'',
+        city: JSON.parse(localStorage.getItem('aurion_city')||'null'),
+        console: JSON.parse(localStorage.getItem('aurion_console_cfg')||'{}'),
+        settings: JSON.parse(localStorage.getItem(LS_SETTINGS)||'{}')
+      };
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'aurion-config.json'; a.click();
+    }; }
+    if(cfgImportInput){ cfgImportInput.onchange = ()=>{
+      const f = cfgImportInput.files && cfgImportInput.files[0]; if(!f) return; const rd = new FileReader();
+      rd.onload = ()=>{ try{ const j = JSON.parse(rd.result);
+        if(j.devices) localStorage.setItem('aurion_devices', JSON.stringify(j.devices));
+        if('notes' in j) localStorage.setItem('aurion_notes_text', j.notes||'');
+        if(j.city) localStorage.setItem('aurion_city', JSON.stringify(j.city));
+        if(j.console) localStorage.setItem('aurion_console_cfg', JSON.stringify(j.console));
+        if(j.settings) localStorage.setItem(LS_SETTINGS, JSON.stringify(j.settings));
+        renderDevices(); loadNotes(); loadAurionCfg(); loadSettings(); alert('Config importée');
+      }catch(e){ alert('Config invalide'); } };
+      rd.readAsText(f);
+    }; }
+    // Apply settings on load
+    loadSettings();
+
+    // 12h/24h clock support
+    (function(){
+      const origUpdate = updateClock;
+      function updateClock12(){
+        const d = new Date();
+        let h = d.getHours(); let ampm = '';
+        if(window.__aurionClock12h){ ampm = h>=12?' PM':' AM'; h = h%12; if(h===0) h = 12; }
+        document.getElementById('clock').textContent = String(h).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+ampm;
+        const days = ["Dim.","Lun.","Mar.","Mer.","Jeu.","Ven.","Sam."];
+        const months = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+        document.getElementById('dateLine').textContent = days[d.getDay()]+" "+d.getDate()+" "+months[d.getMonth()]+" "+d.getFullYear();
+      }
+      // Override ticking
+      clearInterval(); // noop safeguard
+      updateClock = updateClock12; // override reference
+      updateClock(); setInterval(updateClock,60*1000);
+    })();
 
     // ---------------- Audio ----------------
     const audioInput = document.getElementById('audioFile');
@@ -442,6 +678,10 @@
     })();
 
     // ---------------- Aurion Console (real POST) ----------------
+    function setHealth(text, ok){
+      const el = document.getElementById('aurionHealth');
+      if(!el) return; el.textContent = text; el.style.borderColor = ok? '#1f6b3a':'#6b1f1f'; el.style.color = ok? '#9affb0':'#ff9a9a';
+    }
     const aurionUrl = document.getElementById('aurionUrl');
     const aurionKey = document.getElementById('aurionKey');
     const aurionSave = document.getElementById('aurionSave');
@@ -463,6 +703,49 @@
     }
     aurionSave.onclick = saveAurionCfg;
     loadAurionCfg();
+    // Diagnostic function and Help link
+    async function diagnoseEndpoint(url){
+      if(!url){ setHealth('Santé : URL manquante', false); return 'Définis une URL'; }
+      try{
+        const t0 = performance.now();
+        const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:'ping' })});
+        const ms = Math.round(performance.now()-t0);
+        if(r.ok){ setHealth('Santé : OK ('+ms+' ms)', true); return 'OK '+r.status; }
+        if(r.status===404){ setHealth('Santé : 404 (chemin faux)', false); return '404: vérifie le path (/aurion?)'; }
+        if(r.status===401||r.status===403){ setHealth('Santé : auth requise', false); return r.status+': token manquant/incorrect'; }
+        if(r.status===405){ setHealth('Santé : 405 (méthode)', false); return '405: méthode POST non acceptée'; }
+        if(r.status>=500){ setHealth('Santé : serveur en erreur', false); return r.status+': upstream down'; }
+        setHealth('Santé : '+r.status, false); return 'HTTP '+r.status;
+      }catch(e){
+        setHealth('Santé : échec réseau/CORS', false);
+        return 'Échec fetch (CORS, DNS, tunnel ngrok expiré, ou serveur off)';
+      }
+    }
+    const aurionHelp = document.getElementById('aurionHelp');
+    if(aurionHelp){
+      aurionHelp.onclick = (ev)=>{
+        ev.preventDefault();
+        alert('Dépannage rapide:\n• 404 → Mauvais chemin (/aurion?).\n• 401/403 → Ajoute le Bearer token.\n• 405 → Endpoint n\'accepte pas POST.\n• 5xx → Serveur en erreur (Render/VPS).\n• Échec réseau → CORS bloqué, tunnel expiré, DNS ou serveur éteint.');
+      };
+    }
+    // Test endpoint button
+    const aurionTest = document.getElementById('aurionTest');
+    if(aurionTest){
+      aurionTest.onclick = async ()=>{
+        const url = aurionUrl.value.trim();
+        if(!url){ aurionOut.textContent = 'Définis un endpoint avant test.'; setHealth('Santé : URL manquante', false); return; }
+        aurionOut.textContent = 'Test…';
+        try{
+          const t0 = performance.now();
+          const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:'ping' })});
+          const txt = await r.text();
+          const ms = Math.round(performance.now()-t0);
+          aurionOut.textContent = `[${ms} ms]\n` + txt;
+        }catch(e){ aurionOut.textContent = 'Test échoué: '+e.message; }
+        const diag = await diagnoseEndpoint(url);
+        aurionOut.textContent += `\n\n→ Diagnostic: ${diag}`;
+      };
+    }
 
     async function callAurion(prompt){
       const url = aurionUrl.value.trim();
@@ -488,4 +771,21 @@
     aurionPrompt.addEventListener('keydown', e=>{ if(e.key==='Enter') aurionSend.click() });
   </script>
 </body>
+  <!-- Settings modal & Config tools -->
+  <div id="settingsModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:9999">
+    <div style="width:min(520px,92%);background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid #142033;border-radius:14px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="margin:0;color:#a8c4de;letter-spacing:.8px;text-transform:uppercase;font-size:14px">Réglages</h2>
+        <button class="btn" id="settingsClose">Fermer</button>
+      </div>
+      <label class="row small"><input type="checkbox" id="optCompact"> Mode compact (mobile)</label>
+      <label class="row small"><input type="checkbox" id="optReduceMotion"> Réduire les animations</label>
+      <label class="row small"><input type="checkbox" id="optClock12h"> Horloge 12h (am/pm)</label>
+      <div class="row small" style="margin-top:10px">
+        <button class="btn" id="cfgExport">Exporter config</button>
+        <label class="btn" for="cfgImportInput">Importer config</label>
+        <input type="file" id="cfgImportInput" accept="application/json" style="display:none">
+      </div>
+    </div>
+  </div>
 </html>
