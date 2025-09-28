@@ -88,6 +88,8 @@
       width:100%;height:8px;border-radius:999px;background:#0c1528;border:1px solid #17345a;overflow:hidden
     }
     .meter>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#27b1ff,#7cffc1)}
+    input[type="range"]{ -webkit-appearance:none; height:6px; background:#0c1528; border:1px solid #17345a; border-radius:8px }
+    input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--accent); border:1px solid #17345a }
     .badge{padding:4px 8px;border-radius:8px;border:1px solid #27456e;background:#0b162a;font-size:12px}
     .inline{display:inline-flex;gap:8px;align-items:center}
     .footer{
@@ -129,6 +131,7 @@
       *{transition:none!important;animation:none!important}
     }
     body.reduce-motion *{transition:none!important;animation:none!important}
+    body.modal-open{ overflow:hidden }
   </style>
 </head>
 <body>
@@ -244,13 +247,25 @@
     </div>
 
     <!-- Lecteur Audio -->
-    <div class="card" style="grid-column: span 6">
+    <div class="card" id="ambianceCard" style="grid-column: span 6">
       <div class="hint">Audio local</div>
       <h2>Ambiance</h2>
       <div class="row">
         <input type="file" id="audioFile" accept="audio/*">
         <button class="btn" id="playBtn">Lecture/Pause</button>
-        <span id="audioName" class="small muted">Aucun fichier</span>
+        <button class="btn" id="stopBtn">Stop</button>
+        <button class="btn" id="loopBtn">Loop: off</button>
+        <span id="audioName" class="small muted" style="flex:1;min-width:120px">Aucun fichier</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span class="small" id="audioCur">0:00</span>
+        <input type="range" id="audioSeek" min="0" max="100" value="0" style="flex:1">
+        <span class="small" id="audioDur">0:00</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="small">Volume</label>
+        <input type="range" id="audioVol" min="0" max="1" step="0.01" value="1" style="width:160px">
+        <button class="btn" id="muteBtn">Mute</button>
       </div>
       <audio id="player" preload="metadata"></audio>
     </div>
@@ -285,6 +300,24 @@
   <div class="footer">
     <div>© Studio Rapido — Aurion</div>
     <div class="small">Astuce : ajoute cette page à l’écran d’accueil de ton téléphone (PWA‑lite) et passe en plein écran.</div>
+  </div>
+
+  <!-- Settings modal & Config tools (moved inside <body>) -->
+  <div id="settingsModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:9999">
+    <div id="settingsPanel" style="width:min(520px,92%);background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid #142033;border-radius:14px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="margin:0;color:#a8c4de;letter-spacing:.8px;text-transform:uppercase;font-size:14px">Réglages</h2>
+        <button class="btn" id="settingsClose">Fermer</button>
+      </div>
+      <label class="row small"><input type="checkbox" id="optCompact"> Mode compact (mobile)</label>
+      <label class="row small"><input type="checkbox" id="optReduceMotion"> Réduire les animations</label>
+      <label class="row small"><input type="checkbox" id="optClock12h"> Horloge 12h (am/pm)</label>
+      <div class="row small" style="margin-top:10px">
+        <button class="btn" id="cfgExport">Exporter config</button>
+        <label class="btn" for="cfgImportInput">Importer config</label>
+        <input type="file" id="cfgImportInput" accept="application/json" style="display:none">
+      </div>
+    </div>
   </div>
 
   <script>
@@ -532,8 +565,12 @@
       document.body.classList.toggle('reduce-motion', j.reduceMotion);
       window.__aurionClock12h = !!j.clock12h;
     }
-    if(settingsBtn){ settingsBtn.onclick = ()=>{ settingsModal.style.display='flex'; loadSettings(); }; }
-    if(settingsClose){ settingsClose.onclick = ()=>{ settingsModal.style.display='none'; saveSettings(); }; }
+    // Modal UX extras
+    settingsModal.addEventListener('click',(e)=>{ if(e.target===settingsModal) { settingsModal.style.display='none'; saveSettings(); document.body.classList.remove('modal-open'); } });
+    addEventListener('keydown',(e)=>{ if(e.key==='Escape' && settingsModal.style.display==='flex'){ settingsModal.style.display='none'; saveSettings(); document.body.classList.remove('modal-open'); } });
+    const openSettings = ()=>{ settingsModal.style.display='flex'; document.body.classList.add('modal-open'); };
+    if(settingsBtn){ settingsBtn.onclick = openSettings; }
+    if(settingsClose){ settingsClose.onclick = ()=>{ settingsModal.style.display='none'; saveSettings(); document.body.classList.remove('modal-open'); }; }
     // Export/import full config (devices, notes, city, console cfg, settings)
     const cfgExport = document.getElementById('cfgExport');
     const cfgImportInput = document.getElementById('cfgImportInput');
@@ -593,6 +630,40 @@
       audioName.textContent = f.name + " ("+Math.round(f.size/1024)+" Ko)";
       audio.play().catch(()=>{});
     };
+    // Enhanced audio controls
+    const seek = document.getElementById('audioSeek');
+    const cur  = document.getElementById('audioCur');
+    const dur  = document.getElementById('audioDur');
+    const vol  = document.getElementById('audioVol');
+    const muteBtn = document.getElementById('muteBtn');
+    const loopBtn = document.getElementById('loopBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const ambianceCard = document.getElementById('ambianceCard');
+
+    function fmtTime(t){ if(!isFinite(t)) return '0:00'; const m = Math.floor(t/60); const s = Math.floor(t%60); return m+":"+String(s).padStart(2,'0'); }
+
+    audio.addEventListener('loadedmetadata', ()=>{ seek.max = Math.floor(audio.duration||0); dur.textContent = fmtTime(audio.duration||0); });
+    audio.addEventListener('timeupdate', ()=>{ seek.value = Math.floor(audio.currentTime||0); cur.textContent = fmtTime(audio.currentTime||0); });
+
+    seek.addEventListener('input', ()=>{ audio.currentTime = Number(seek.value||0); });
+    vol.addEventListener('input', ()=>{ audio.volume = Number(vol.value); localStorage.setItem('aurion_audio_vol', vol.value); });
+
+    // restore volume
+    (function(){ const v = localStorage.getItem('aurion_audio_vol'); if(v!==null){ audio.volume = Number(v); vol.value = v; } })();
+
+    muteBtn.onclick = ()=>{ audio.muted = !audio.muted; muteBtn.textContent = audio.muted ? 'Unmute' : 'Mute'; };
+    loopBtn.onclick = ()=>{ audio.loop = !audio.loop; loopBtn.textContent = 'Loop: '+(audio.loop?'on':'off'); };
+    stopBtn.onclick = ()=>{ audio.pause(); audio.currentTime = 0; };
+
+    // Drag & drop
+    if(ambianceCard){
+      ['dragenter','dragover'].forEach(ev=>ambianceCard.addEventListener(ev,(e)=>{ e.preventDefault(); ambianceCard.style.outline='2px dashed #27456e'; }));
+      ['dragleave','drop'].forEach(ev=>ambianceCard.addEventListener(ev,(e)=>{ e.preventDefault(); ambianceCard.style.outline='none'; }));
+      ambianceCard.addEventListener('drop',(e)=>{
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if(!f) return; audio.src = URL.createObjectURL(f); audioName.textContent = f.name + ' ('+Math.round(f.size/1024)+' Ko)'; audio.play().catch(()=>{});
+      });
+    }
 
     // ---------------- Weather (Open‑Meteo) ----------------
     const cityInput = document.getElementById('cityInput');
@@ -784,21 +855,4 @@
     aurionPrompt.addEventListener('keydown', e=>{ if(e.key==='Enter') aurionSend.click() });
   </script>
 </body>
-  <!-- Settings modal & Config tools -->
-  <div id="settingsModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:9999">
-    <div style="width:min(520px,92%);background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid #142033;border-radius:14px;padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h2 style="margin:0;color:#a8c4de;letter-spacing:.8px;text-transform:uppercase;font-size:14px">Réglages</h2>
-        <button class="btn" id="settingsClose">Fermer</button>
-      </div>
-      <label class="row small"><input type="checkbox" id="optCompact"> Mode compact (mobile)</label>
-      <label class="row small"><input type="checkbox" id="optReduceMotion"> Réduire les animations</label>
-      <label class="row small"><input type="checkbox" id="optClock12h"> Horloge 12h (am/pm)</label>
-      <div class="row small" style="margin-top:10px">
-        <button class="btn" id="cfgExport">Exporter config</button>
-        <label class="btn" for="cfgImportInput">Importer config</label>
-        <input type="file" id="cfgImportInput" accept="application/json" style="display:none">
-      </div>
-    </div>
-  </div>
 </html>
